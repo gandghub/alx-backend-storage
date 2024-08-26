@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-""" Update School """
-import pymongo
-from typing import List
+""" Mongo change school topics module.
+"""
 
 
 def update_topics(mongo_collection, name, topics):
-    """ Change the data
-    
-        Args:
-            mongo_collection:
-            name: School
-            topics: School name
-
+    """ Method that changes all topics of a school document based on the name.
+        Arg:
+            mongo_collection: pymongo collection object.
+            name: Is the school name to update.
+            topipcs: Is the list of topics approached in the school.
         Return:
-            Nothing
+            The update topics.
     """
-    query: dict = {'name': name}
-    mongo_collection.update_many(query, {"$set": {"topics": topics}})
+    return mongo_collection.update_many({"name": name},
+                                        {"$set": {"topics": topics}})
