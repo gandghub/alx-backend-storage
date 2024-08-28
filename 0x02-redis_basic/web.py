@@ -1,38 +1,42 @@
 #!/usr/bin/env python3
-'''A module with tools for request caching and tracking.
-'''
 import redis
 import requests
 from functools import wraps
 from typing import Callable
 
-
-redis_store = redis.Redis()
-'''The module-level Redis instance.
-'''
+# Initialize the Redis client
+rc = redis.Redis()
 
 
-def data_cacher(method: Callable) -> Callable:
-    '''Caches the output of fetched data.
-    '''
+def cache_page(method: Callable) -> Callable:
     @wraps(method)
-    def invoker(url) -> str:
-        '''The wrapper function for caching the output.
-        '''
-        redis_store.incr(f'count:{url}')
-        result = redis_store.get(f'result:{url}')
-        if result:
-            return result.decode('utf-8')
-        result = method(url)
-        redis_store.set(f'count:{url}', 0)
-        redis_store.setex(f'result:{url}', 10, result)
-        return result
-    return invoker
+    def wrapper(url: str) -> str:
+        rc.incr(f"count:{url}")
+        cached_content = rc.get(f"cached:{url}")
+        if cached_content:
+            return cached_content.decode("utf-8")
+
+        try:
+            result = method(url)
+            rc.setex(f"cached:{url}", 10, result)
+            return result
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching the URL: {e}")
+            return "Error: Unable to fetch the URL."
+    return wrapper
 
 
-@data_cacher
+@cache_page
 def get_page(url: str) -> str:
-    '''Returns the content of a URL after caching the request's response,
-    and tracking the request.
-    '''
-    return requests.get(url).text
+    response = requests.get(url)
+    return response.text
+
+
+if __name__ == "__main__":
+    url = 'https://httpbin.org/delay/5'  # Replace with a reliable test URL
+    content = get_page(url)
+    print(content)
+    content = get_page(url)
+    print(content)
+    access_count = rc.get(f"count:{url}")
+    print(f"URL accessed {access_count.decode('utf-8')} times.")
