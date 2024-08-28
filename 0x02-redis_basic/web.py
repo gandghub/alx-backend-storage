@@ -1,45 +1,36 @@
 #!/usr/bin/env python3
 """
-Create a web cache.
+Caching request module
 """
 import redis
 import requests
-from typing import Optional
-
-# Initialize the Redis client
-rc = redis.Redis()
+from functools import wraps
+from typing import Callable
 
 
+def track_get_page(fn: Callable) -> Callable:
+    """ Decorator for get_page
+    """
+    @wraps(fn)
+    def wrapper(url: str) -> str:
+        """ Wrapper that:
+            - check whether a url's data is cached
+            - tracks how many times get_page is called
+        """
+        client = redis.Redis()
+        client.incr(f'count:{url}')
+        cached_page = client.get(f'{url}')
+        if cached_page:
+            return cached_page.decode('utf-8')
+        response = fn(url)
+        client.set(f'{url}', response, 10)
+        return response
+    return wrapper
+
+
+@track_get_page
 def get_page(url: str) -> str:
-    """Get a page and cache the value."""
-    # Check if the page is already cached
-    cached_content: Optional[bytes] = rc.get(f"cached:{url}")
-    if cached_content:
-        return cached_content.decode("utf-8")
-
-    # If not cached, fetch the content
-    resp = requests.get(url)
-
-    # Increment the URL access count
-    rc.incr(f"count:{url}")
-
-    # Cache the content with an expiration time of 10 seconds
-    rc.setex(f"cached:{url}", 10, resp.text)
-
-    return resp.text
-
-
-if __name__ == "__main__":
-    url = (
-        'http://slowwly.robertomurray.co.uk/delay/5000/url/http://www.exle.com'
-    )
-    content = get_page(url)
-    print(content)
-
-    # To demonstrate caching, fetching the page again should be fast
-    content = get_page(url)
-    print(content)
-
-    # Print the access count
-    access_count = rc.get(f"count:{url}")
-    print(f"URL accessed {access_count.decode('utf-8')} times.")
+    """ Makes a http request to a given endpoint
+    """
+    response = requests.get(url)
+    return response.text
