@@ -1,34 +1,68 @@
 #!/usr/bin/env python3
-""" expiring web cache module """
-
+"""
+This module contains a function to cache web pages with an expiration time and track access counts.
+"""
 import redis
 import requests
 from typing import Callable
 from functools import wraps
 
-redis = redis.Redis()
+# Initialize the Redis client
+r = redis.Redis()
 
-
-def wrap_requests(fn: Callable) -> Callable:
-    """ Decorator wrapper """
-
-    @wraps(fn)
-    def wrapper(url):
-        """ Wrapper for decorator guy """
-        redis.incr(f"count:{url}")
-        cached_response = redis.get(f"cached:{url}")
-        if cached_response:
-            return cached_response.decode('utf-8')
-        result = fn(url)
-        redis.setex(f"cached:{url}", 10, result)
-        return result
-
+def count_requests(method: Callable) -> Callable:
+    """
+    Decorator that tracks how many times a URL has been requested.
+    
+    Args:
+        method: The method to be decorated.
+    
+    Returns:
+        The decorated method.
+    """
+    @wraps(method)
+    def wrapper(url: str) -> str:
+        """Wrapper function to count URL requests."""
+        cache_key = f"count:{url}"
+        r.incr(cache_key)  # Increment the count for this URL
+        return method(url)
     return wrapper
 
-
-@wrap_requests
+@count_requests
 def get_page(url: str) -> str:
-    """get page self descriptive
     """
+    Retrieves the HTML content of a URL and caches it in Redis for 10 seconds.
+    
+    Args:
+        url: The URL to retrieve.
+    
+    Returns:
+        The HTML content of the URL.
+    """
+    # Check if the URL content is already cached
+    cache_key = f"cached:{url}"
+    cached_content = r.get(cache_key)
+    if cached_content:
+        return cached_content.decode('utf-8')
+
+    # If not cached, fetch the content and cache it
     response = requests.get(url)
-    return response.text
+    html_content = response.text
+
+    # Cache the content with an expiration time of 10 seconds
+    r.setex(cache_key, 10, html_content)
+
+    return html_content
+
+if __name__ == "__main__":
+    url = "http://slowwly.robertomurray.co.uk/delay/5000/url/http://www.example.com"
+    
+    # Fetch the page content
+    print(get_page(url))
+    
+    # Fetch the page content again to demonstrate caching
+    print(get_page(url))
+    
+    # Retrieve and print the access count for the URL
+    count_key = f"count:{url}"
+    print(f"URL accessed {r.get(count_key).decode('utf-8')} times.")
