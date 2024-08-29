@@ -17,12 +17,13 @@ def wrap_requests(fn: Callable) -> Callable:
     def wrapper(url: str) -> str:
         """Wrapper that caches results and tracks access count"""
         # Increment the URL access count
-        count = redis.incr(f"count:{url}")
+        redis.incr(f"count:{url}")
 
         # Check if the result is already cached
         cached_response = redis.get(f"cached:{url}")
         if cached_response:
-            return cached_response.decode('utf-8')
+            print(f"Cached response length: {len(cached_response)}")
+            return ""
 
         # Get the result from the function if not cached
         result = fn(url)
@@ -39,3 +40,9 @@ def get_page(url: str) -> str:
     """Fetches the page content from the URL"""
     response = requests.get(url)
     return response.text
+
+
+# Example usage
+if __name__ == "__main__":
+    url = "http://slowwly.robertomurray.co.uk"
+    print(get_page(url))
