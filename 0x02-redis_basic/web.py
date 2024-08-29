@@ -17,7 +17,7 @@ def wrap_requests(fn: Callable) -> Callable:
     def wrapper(url: str) -> str:
         """Wrapper that caches results and tracks access count"""
         # Increment the URL access count
-        redis.incr(f"count:{url}")
+        count = redis.incr(f"count:{url}")
 
         # Check if the result is already cached
         cached_response = redis.get(f"cached:{url}")
